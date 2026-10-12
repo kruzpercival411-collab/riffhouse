@@ -1,0 +1,27 @@
+name: Build Riffhouse Studio
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest   # Windows Server 2025 + Visual Studio 2026 (v18)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show CMake version
+        run: cmake --version
+
+      - name: Configure (Visual Studio 18 2026)
+        run: cmake -B build -G "Visual Studio 18 2026" -A x64
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: Riffhouse-Studio-VST3
+          path: build/Riffhouse_artefacts/Release/VST3/

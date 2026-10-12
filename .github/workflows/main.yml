@@ -17,7 +17,7 @@ jobs:
           $f = Get-ChildItem -Recurse -Filter CMakeLists.txt |
                Where-Object { Select-String -Path $_.FullName -Pattern 'juce_add_plugin' -Quiet } |
                Sort-Object { $_.FullName.Length } | Select-Object -First 1
-          if (-not $f) { Write-Error "No CMakeLists.txt with juce_add_plugin found - check the repo has CMakeLists.txt and the Source folder"; exit 1 }
+          if (-not $f) { Write-Error "No CMakeLists.txt with juce_add_plugin found"; exit 1 }
           Write-Host "Project found in: $($f.DirectoryName)"
           "SRC=$($f.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
@@ -25,4 +25,31 @@ jobs:
         run: cmake --version
 
       - name: Configure (Visual Studio 18 2026)
-        run:
+        run: cmake -S "${{ env.SRC }}" -B build -G "Visual Studio 18 2026" -A x64
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Collect the VST3
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          $plugins = Get-ChildItem -Path build -Recurse -Directory -Filter *.vst3 |
+                     Where-Object { $_.FullName -notmatch '\\_deps\\' -and $_.Parent.Name -eq 'VST3' }
+          if (-not $plugins) {
+            Write-Host "No .vst3 found. Everything the build produced:"
+            Get-ChildItem -Path build -Recurse -Filter *_artefacts -Directory | ForEach-Object { Get-ChildItem $_.FullName -Recurse | Select-Object -ExpandProperty FullName }
+            Write-Error "Build finished but no VST3 was produced"
+            exit 1
+          }
+          foreach ($p in $plugins) {
+            Write-Host "Found plugin: $($p.FullName)"
+            Copy-Item -Recurse -Force $p.FullName out\
+          }
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: Riffhouse-Studio-VST3
+          path: out/
+          if-no-files-found: error

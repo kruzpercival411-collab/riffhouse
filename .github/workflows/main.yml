@@ -11,17 +11,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Find the plugin project folder
+        shell: pwsh
+        run: |
+          $f = Get-ChildItem -Recurse -Filter CMakeLists.txt |
+               Where-Object { Select-String -Path $_.FullName -Pattern 'juce_add_plugin' -Quiet } |
+               Sort-Object { $_.FullName.Length } | Select-Object -First 1
+          if (-not $f) { Write-Error "No CMakeLists.txt with juce_add_plugin found - check the repo has CMakeLists.txt and the Source folder"; exit 1 }
+          Write-Host "Project found in: $($f.DirectoryName)"
+          "SRC=$($f.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Show CMake version
         run: cmake --version
 
       - name: Configure (Visual Studio 18 2026)
-        run: cmake -B build -G "Visual Studio 18 2026" -A x64
-
-      - name: Build
-        run: cmake --build build --config Release --parallel
-
-      - name: Upload VST3
-        uses: actions/upload-artifact@v4
-        with:
-          name: Riffhouse-Studio-VST3
-          path: build/Riffhouse_artefacts/Release/VST3/
+        run:
